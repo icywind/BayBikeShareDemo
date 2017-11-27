@@ -6,3 +6,4 @@ Targetted OS: iOS 10 and Above
 
 Device Orientation: Portrait
 
+![alt tag](https://fattag.com/screenshot/ScreenShot_BayBike.png "A sample screenshot")
