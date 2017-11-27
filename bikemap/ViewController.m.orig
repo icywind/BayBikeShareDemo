@@ -1,0 +1,527 @@
+//
+//  ViewController.m
+//  bikemap
+//
+//  Created by Rickie on 11/21/17.
+//  Copyright © 2017 Rickie. All rights reserved.
+//
+
+#import <MapKit/MapKit.h>
+#import "ViewController.h"
+#import "BikeLocation.h"
+
+#define InfoURL @"https://fattag.com/stations.json"
+//#define InfoURL @"https://feeds.bayareabikeshare.com/stations/stations.json"
+#define METERS_PER_MILE 1609.344
+#define StartTitle @"BikeShareOrigin"
+#define DestTitle  @"BikeShareDestination"
+
+// the following are identifiers to be used in map item drawing
+#define ID_REG_LOCATION @"Reg Location"
+#define ID_GREEN_LOCATION @"Green Location"
+#define ID_RED_LOCATION @"Red Location"
+#define ID_ORIGIN @"Start Location"
+#define ID_DESTINATION @"Destination Location"
+
+@interface ViewController ()
+@property (strong, nonatomic) IBOutlet MKMapView *mapView;
+
+- (IBAction)refreshTapped:(id)sender;
+- (IBAction)routeButtonTapped:(id)sender;
+
+@property (strong, nonatomic) IBOutlet UIView *routeView;
+
+@property (strong, nonatomic) IBOutlet UITextField *startTextfield;
+@property (strong, nonatomic) IBOutlet UITextField *destRextfield;
+
+- (IBAction)startTextEditDidEnd:(id)sender;
+- (IBAction)startTextActionTriggered:(id)sender;
+- (IBAction)startTextValueChanged:(id)sender;
+
+- (IBAction)destTextActionTriggered:(id)sender;
+
+- (IBAction)startSliderValueChanged:(id)sender;
+- (IBAction)destSliderValueChanged:(id)sender;
+
+@property (strong, nonatomic) IBOutlet UISlider *startDistSlider;
+@property (strong, nonatomic) IBOutlet UISlider *destDistSlider;
+
+@property (strong, nonatomic) IBOutlet UILabel *startSliderValueLabel;
+@property (strong, nonatomic) IBOutlet UILabel *destSliderValueLabel;
+- (IBAction)confirmButtonPressed:(id)sender;
+- (IBAction)cancelInputPressed:(id)sender;
+@property (strong, nonatomic) IBOutlet UIButton *confirmButton;
+@property (strong, nonatomic) NSArray * stationList;
+
+@end
+
+typedef enum {
+    BS_STARTUP,
+    BS_INITIALIZED,
+    BS_PLANCONFIRMED,   // user pressed confirm with valid start and end points
+    BS_ROUTING
+} BikeShareViewState;
+
+@implementation ViewController
+@synthesize mapView;
+BOOL mapLoaded;
+MKPlacemark * originPoint;
+MKPlacemark * destinationPoint;
+BikeShareViewState myState;
+
+- (void) loadUserLocation
+{
+    objLocationManager = [[CLLocationManager alloc] init];
+    objLocationManager.delegate = self;
+    objLocationManager.distanceFilter = kCLDistanceFilterNone;
+    objLocationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters;
+    if ([objLocationManager respondsToSelector:@selector(requestWhenInUseAuthorization)]) {
+        [objLocationManager requestWhenInUseAuthorization];
+    }
+    [objLocationManager startUpdatingLocation];
+}
+
+#pragma mark Delegate functions
+- (void)locationManager:(CLLocationManager *)manager
+     didUpdateLocations:(NSArray *)locations __OSX_AVAILABLE_STARTING(__MAC_NA,__IPHONE_6_0)
+{
+    CLLocation *newLocation = [locations objectAtIndex:0];
+    latitude_UserLocation = newLocation.coordinate.latitude;
+    longitude_UserLocation = newLocation.coordinate.longitude;
+    // [objLocationManager stopUpdatingLocation];
+    
+<<<<<<< HEAD
+    originPoint = [[MKPlacemark alloc] initWithCoordinate:CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation) ];
+=======
+>>>>>>> Direct to Map app
+    
+    // Only reload and center map at startup
+    if (!mapLoaded) {
+        [self loadMapView];
+        originPoint = [[MKPlacemark alloc] initWithCoordinate:CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation) ];
+    }
+}
+
+- (void)locationManager:(CLLocationManager *)manager
+       didFailWithError:(NSError *)error
+{
+ //   [objLocationManager stopUpdatingLocation];
+}
+
+- (void) loadMapView {
+    // 1
+    CLLocationCoordinate2D zoomLocation;
+    zoomLocation.latitude = latitude_UserLocation;
+    zoomLocation.longitude= longitude_UserLocation;
+    
+    // 2
+    MKCoordinateRegion viewRegion = MKCoordinateRegionMakeWithDistance(zoomLocation, 0.5*METERS_PER_MILE, 0.5*METERS_PER_MILE);
+    
+    // 3
+    [mapView setRegion:viewRegion animated:YES];
+    
+    mapLoaded = YES;
+    myState = BS_INITIALIZED;
+}
+
+BikeLocation * selectedBikeLocation;
+- (void)mapView:(MKMapView *)mapView didSelectAnnotationView:(MKAnnotationView *)view
+{
+    // here we illustrate how to detect which annotation type was clicked on for its callout
+    id <MKAnnotation> annotation = [view annotation];
+    if ([annotation isKindOfClass:[BikeLocation class]])
+    {
+        selectedBikeLocation = annotation;
+    }
+}
+
+- (MKAnnotationView *)mapView:(MKMapView *)theMapView viewForAnnotation:(id <MKAnnotation>)annotation {
+    
+    NSString * viewId;
+    int check = -1;
+    
+    if ([annotation isKindOfClass:[BikeLocation class]]) {
+        if (myState == BS_PLANCONFIRMED) {
+            check = [self checkStation:annotation];
+            if (check == 0 || check == 2) {
+                viewId = ID_GREEN_LOCATION;
+            } else if (check == 1 || check == 3) {
+                viewId = ID_RED_LOCATION;
+            } else {
+                return nil;
+            }
+        } else {
+            viewId = ID_REG_LOCATION;
+        }
+    } else {
+        if ([annotation.title isEqualToString:StartTitle]) {
+            viewId = ID_ORIGIN;
+        } else if ([annotation.title isEqualToString:DestTitle]) {
+            viewId = ID_DESTINATION;
+        } else {
+            NSLog(@"Unknow annotation, title = %@", annotation.title);
+            return nil;
+        }
+    }
+    
+    MKAnnotationView *annotationView = (MKAnnotationView *) [theMapView dequeueReusableAnnotationViewWithIdentifier:viewId];
+    
+    if (annotationView == nil) {
+        annotationView = [[MKAnnotationView alloc] initWithAnnotation:annotation
+                                                      reuseIdentifier:viewId];
+        annotationView.enabled = YES;
+        annotationView.canShowCallout = YES;
+        
+        if ([viewId isEqual: ID_REG_LOCATION] || check == 0 || check == 1) {
+            UIButton *embedButton = [UIButton buttonWithType:UIButtonTypeSystem];
+            [embedButton addTarget:self action:@selector(annoButtonActionOnStartPoint:) forControlEvents:UIControlEventTouchUpInside];
+            annotationView.detailCalloutAccessoryView = embedButton;
+            [embedButton setTitle:@"Direction to Here" forState:UIControlStateNormal];
+        } else if (check == 2 || check == 3) {
+            UIButton *embedButton = [UIButton buttonWithType:UIButtonTypeSystem];
+            [embedButton addTarget:self action:@selector(annoButtonActionOnEndPoint:) forControlEvents:UIControlEventTouchUpInside];
+            annotationView.detailCalloutAccessoryView = embedButton;
+            [embedButton setTitle:@"Direction from Here" forState:UIControlStateNormal];
+        }
+    } else {
+        annotationView.annotation = annotation;
+    }
+    
+    annotationView.image = [self getAnnationImage:viewId];
+    return annotationView;
+}
+
+- (void)annoButtonActionOnStartPoint:(id)sender {
+    NSLog(@"Click on button");
+    if (selectedBikeLocation != nil) {
+        NSDictionary *launchOptions = @{MKLaunchOptionsDirectionsModeKey : MKLaunchOptionsDirectionsModeWalking};
+
+        MKMapItem *startPositionMapitem = originPoint != nil? [[MKMapItem alloc] initWithPlacemark:originPoint] : [MKMapItem mapItemForCurrentLocation];
+        
+        [MKMapItem openMapsWithItems:@[startPositionMapitem, selectedBikeLocation.mapItem]
+                       launchOptions:launchOptions];
+        
+    }
+}
+
+- (void)annoButtonActionOnEndPoint:(id)sender {
+    NSLog(@"Click on button2");
+    if (selectedBikeLocation != nil) {
+        NSDictionary *launchOptions = @{MKLaunchOptionsDirectionsModeKey : MKLaunchOptionsDirectionsModeWalking};
+        
+        MKMapItem *endPositionMapitem = [[MKMapItem alloc] initWithPlacemark:destinationPoint];
+        
+        [MKMapItem openMapsWithItems:@[selectedBikeLocation.mapItem, endPositionMapitem]
+                       launchOptions:launchOptions];
+        
+    }
+}
+
+// this function setups predefined annotation views:
+//   Black pin = basic station location
+//   Red pin = not for service
+//   Green pin = for service
+//   Yellow pin = starting point (origin)
+//   Flag = destintation
+-(UIImage *) getAnnationImage:(NSString *)locationId {
+    NSString * imagefIle;
+    if ([locationId isEqualToString:ID_ORIGIN]) {
+            imagefIle = @"startingPoint.png";
+    } else if ([locationId isEqualToString:ID_DESTINATION]) {
+            imagefIle = @"destinationPoint.png";
+    } else if ([locationId isEqualToString:ID_REG_LOCATION]) {
+            imagefIle = @"blackpin.png";
+    } else if ([locationId isEqualToString:ID_GREEN_LOCATION]) {
+            imagefIle = @"greenpin.png";
+    } else if ([locationId isEqualToString:ID_RED_LOCATION]) {
+            imagefIle = @"redpin.png";
+    }
+    
+    if (imagefIle != nil) {
+        return [UIImage imageNamed:imagefIle];
+    }
+            
+    return nil;
+}
+
+# pragma mark - View lifecycle
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    mapLoaded = NO;
+    //[self obtainData];
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissKeyboard)];
+    
+    // Setup Slider and show values
+    [_startSliderValueLabel setText:[NSString stringWithFormat:@"%1.2f miles", [_startDistSlider value]]];
+    [_destSliderValueLabel setText:[NSString stringWithFormat:@"%1.2f miles", [_startDistSlider value]]];
+    [self.view addGestureRecognizer:tap];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    //[self loadMapView];
+    [self loadUserLocation];
+    [_confirmButton setEnabled:NO];
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+# pragma mark - Draw Data
+- (void)plotBikePositions:(NSArray *) bikeStationList {
+    for (id<MKAnnotation> annotation in mapView.annotations) {
+        if ([annotation isKindOfClass:[BikeLocation class]]) {
+            [mapView removeAnnotation:annotation];
+        }
+    }
+    for (NSDictionary *station in bikeStationList) {
+        BikeLocation *annotation = [[BikeLocation alloc] initWithData:station];
+        if (myState == BS_PLANCONFIRMED) {
+            int check = [self checkStation:annotation];
+            if (check != -1) {
+                [mapView addAnnotation:annotation];
+            }
+        } else {
+            [mapView addAnnotation:annotation];
+        }
+    }
+}
+
+- (NSDictionary*) getDataFromJSONData:(NSData*)data {
+    NSError * error=nil;
+    if (data != nil) {
+        // NSArray * parsedData = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:&error];
+        //JSONDecoder *jsonKitDecoder = [JSONDecoder decoder];
+        //NSDictionary *items = [jsonKitDecoder objectWithData:data];
+        NSDictionary * items = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&error];
+        // TODO handle error
+        return items;
+    } else {
+        return nil;
+    }
+}
+
+- (void) obtainData:(NSString*) dataURL {
+    NSError *error;
+    NSData *data = [NSData dataWithContentsOfURL: [NSURL URLWithString:dataURL] options:NSDataReadingUncached error:&error];
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&error];
+    _stationList = [json objectForKey:@"stationBeanList"];
+    //NSLog(@"json: %@", list);
+    [self plotBikePositions:_stationList];
+}
+
+- (IBAction)refreshTapped:(id)sender {
+    NSLog(@"Refreshing map");
+    [self obtainData:InfoURL];
+    //NSMutableDictionary * dict = [NSMutableDictionary dictionaryWithDictionary:@{@"latitude": @37.321398, @"longitude" : @28.292399}];
+    //BikeLocation *annotation = [[BikeLocation alloc] initWithData:dict];
+}
+
+- (IBAction)routeButtonTapped:(id)sender {
+    NSLog(@"Route btn Tapped");
+    [_routeView setHidden:!_routeView.isHidden];
+    [_startTextfield setEnabled:YES];
+    [_destRextfield setEnabled:YES];
+    
+    if ([_routeView isHidden]) {
+        [self dismissKeyboard];
+    }
+}
+
+#pragma mark - UI Controls
+-(void)dismissKeyboard
+{
+    [self.view endEditing:YES];
+}
+
+// Keyboard dismissed
+- (IBAction)startTextEditDidEnd:(id)sender {
+    NSLog(@"%s", __func__);
+}
+
+// User finished input and hit "Search" on the keyboard
+- (IBAction)startTextActionTriggered:(id)sender {
+    NSLog(@"%s", __func__);
+    [self searchForLocation:_startTextfield];
+}
+
+- (IBAction)startTextValueChanged:(id)sender {
+    NSLog(@"%s", __func__);
+    originPoint = nil;
+    [_confirmButton setEnabled:NO];
+}
+
+- (IBAction)destTextActionTriggered:(id)sender {
+    [self searchForLocation:_destRextfield];
+}
+
+- (IBAction)startSliderValueChanged:(id)sender {
+    [_startSliderValueLabel setText:[NSString stringWithFormat:@"%1.2f miles", [(UISlider*)sender value]]];
+}
+
+- (IBAction)destSliderValueChanged:(id)sender {
+    [_destSliderValueLabel setText:[NSString stringWithFormat:@"%1.2f miles", [(UISlider*)sender value]]];
+}
+
+- (IBAction)confirmButtonPressed:(id)sender {
+    NSLog(@"Confirmed");
+    [_routeView setHidden:YES];
+    
+    myState = BS_PLANCONFIRMED;
+    
+    // Clear current annotations
+    [self ClearPoints];
+    
+    // Plot the Start and End mark
+    if ([_startTextfield.text isEqualToString:@"current location"]) {
+        MKPointAnnotation *point  = [[MKPointAnnotation alloc] init];
+        point.coordinate = CLLocationCoordinate2DMake(latitude_UserLocation, latitude_UserLocation);
+        point.title = StartTitle;
+        [mapView addAnnotation:point];
+        originPoint = [[MKPlacemark alloc] initWithCoordinate:point.coordinate];
+    } else {
+        if (originPoint != nil) {
+            [mapView addAnnotation:[self GetAnnotation:originPoint withTitle:StartTitle]];
+        }
+        if (destinationPoint != nil) {
+            [mapView addAnnotation:[self GetAnnotation:destinationPoint withTitle:DestTitle]];
+        }
+    }
+    
+}
+
+- (IBAction)cancelInputPressed:(id)sender {
+    [_startTextfield setEnabled:YES];
+    [_destRextfield setEnabled:YES];
+    originPoint = nil;
+    destinationPoint = nil;
+}
+
+
+// Given a station, find out if it is OK to show it on the map.
+//   Return values:
+//      0 : OK to show as green for starting
+//      1 : OK to show as red for starting
+//      2 : OK to show as green for end
+//      3 : OK to show as red for end
+//      -1: not within distance of neither point, or it is not in service (Don't show)
+- (int) checkStation:(BikeLocation*) station {
+    if (station.inService) {
+        if ( [station isInDistanceOf:originPoint.location distance:_startDistSlider.value * METERS_PER_MILE]) {
+            if ( [station hasAvailableBike] ) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else if ([station isInDistanceOf:destinationPoint.location distance:_destDistSlider.value * METERS_PER_MILE]) {
+            if ( [station isFull]) {
+                return 3;
+            } else {
+                return 2;
+            }
+        }
+    }
+    return -1;
+}
+
+#pragma mark - Search Locations
+- (void) searchForLocation:(UITextField *)textfield {
+    // Create and initialize a search request object.
+    MKLocalSearchRequest *request = [[MKLocalSearchRequest alloc] init];
+    request.naturalLanguageQuery = textfield.text;
+    request.region = self.mapView.region;
+    
+    // Create and initialize a search object.
+    MKLocalSearch *search = [[MKLocalSearch alloc] initWithRequest:request];
+    
+    // Start the search and display the results as annotations on the map.
+    [search startWithCompletionHandler:^(MKLocalSearchResponse *response, NSError *error)
+    {
+        NSMutableArray *placemarks = [NSMutableArray array];
+        for (MKMapItem *item in response.mapItems) {
+            [placemarks addObject:item.placemark];
+            NSLog(@"Place: name:%@  address:%@", item.placemark.name, [item.placemark.addressDictionary objectForKey:@"FormattedAddressLines"]);
+        }
+        // We may consider using a table to present choices, but for now just feed the first one if any
+        if ([placemarks count] > 0) {
+            MKPlacemark * mark = [placemarks objectAtIndex:0];
+            [self confirmChoice:mark callback:^(BOOL ok) {
+                if (ok) {
+                    textfield.text = mark.name;
+                    if (textfield == _startTextfield) {
+                        originPoint = mark;
+                        [_startTextfield setEnabled:NO];
+                    } else if (textfield == _destRextfield) {
+                        destinationPoint = mark;
+                        [_destRextfield setHidden:NO];
+                    }
+                    
+                    if (originPoint != nil && destinationPoint != nil) {
+                        [_confirmButton setEnabled:YES];
+                    }
+                }
+            }];
+        }
+    }];
+}
+
+- (void) confirmChoice: (MKPlacemark *)place  callback:(void (^)(BOOL))callbackBlock
+{
+    NSString * street = [[place.addressDictionary objectForKey:@"Street"] stringByReplacingOccurrencesOfString:@"\"" withString:@""];
+    if (street == nil) {
+        street = @"";
+    }
+    NSString * zip = [place.addressDictionary objectForKey:@"ZIP"];
+    if (zip == nil) {
+        zip = @"";
+    }
+    NSString * nameAndAddress = [NSString stringWithFormat:@"%@\n%@\n%@,%@ %@",
+                                 place.name,
+                                 street,
+                                 [place.addressDictionary objectForKey:@"City"],
+                                 [place.addressDictionary objectForKey:@"State"],
+                                 zip
+                                 ];
+
+    
+    UIAlertController * alert=[UIAlertController alertControllerWithTitle:@"Is this the place?"
+                                                                  message:nameAndAddress
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction* yesButton = [UIAlertAction actionWithTitle:@"Yes"
+                                                        style:UIAlertActionStyleDefault
+                                                      handler:^(UIAlertAction * action)
+    {
+        callbackBlock(YES);
+    }];
+    
+    UIAlertAction* noButton = [UIAlertAction actionWithTitle:@"No"
+                                                       style:UIAlertActionStyleDefault
+                                                     handler:^(UIAlertAction * action)
+    {
+        callbackBlock(NO);
+    }];
+    
+    [alert addAction:noButton];
+    [alert addAction:yesButton];
+    
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (MKPointAnnotation *) GetAnnotation:(MKPlacemark *)placeMark withTitle:(NSString *)title{
+    MKPointAnnotation *point = [MKPointAnnotation new];
+    point.coordinate = placeMark.coordinate;
+    point.title = title;
+    point.subtitle = placeMark.name;
+    
+    return point;
+}
+
+- (void) ClearPoints {
+    for (id<MKAnnotation> annotation in mapView.annotations) {
+            [mapView removeAnnotation:annotation];
+    }
+}
+@end
