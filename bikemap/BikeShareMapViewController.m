@@ -9,6 +9,7 @@
 #import <MapKit/MapKit.h>
 #import "BikeShareMapViewController.h"
 #import "BikeLocation.h"
+#import "LocationSelectionViewController.h"
 
 #define StationInfoURL @"https://feeds.bayareabikeshare.com/stations/stations.json"
 
@@ -286,6 +287,26 @@ double latitude_UserLocation, longitude_UserLocation;
 // User finished input and hit "Search" on the keyboard
 - (IBAction)startTextActionTriggered:(id)sender {
     [self searchForLocation:_startTextfield];
+}
+- (IBAction)startTextEditDidBegin:(id)sender {
+    [self performSegueWithIdentifier:@"GotoSelection" sender:self];
+    // is there a way to disable Storyboard's trigger?
+    // or create a dummy UI for that???
+}
+
+// This will get called too before the view appears
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
+{
+    if ([[segue identifier] isEqualToString:@"GotoSelection"]) {
+        
+        // Get destination view
+        LocationSelectionViewController *vc = (LocationSelectionViewController*)[segue destinationViewController];
+        
+        // Pass the information to your destination view
+        [vc initWithUserLocation:CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation) Callback:^(MKPlacemark *placeMake) {
+            NSLog(@"Got place:%@", placeMake.description);
+        }];
+    }
 }
 
 - (IBAction)startTextValueChanged:(id)sender {

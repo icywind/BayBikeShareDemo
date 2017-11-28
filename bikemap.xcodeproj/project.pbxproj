@@ -11,6 +11,7 @@
 		36A2BCCF1FC6120400DD20ED /* greenpin.png in Resources */ = {isa = PBXBuildFile; fileRef = 36A2BCCD1FC6120400DD20ED /* greenpin.png */; };
 		36A2BCD21FC6124B00DD20ED /* blackpin.png in Resources */ = {isa = PBXBuildFile; fileRef = 36A2BCD11FC6124B00DD20ED /* blackpin.png */; };
 		36A2BCD41FC618ED00DD20ED /* direction.png in Resources */ = {isa = PBXBuildFile; fileRef = 36A2BCD31FC618ED00DD20ED /* direction.png */; };
+		954B224B1FCD20E200E78808 /* LocationSelectionViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 954B224A1FCD20E200E78808 /* LocationSelectionViewController.m */; };
 		957954891FC53290003929C6 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 957954881FC53290003929C6 /* main.m */; };
 		9579548C1FC53290003929C6 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 9579548B1FC53290003929C6 /* AppDelegate.m */; };
 		9579548F1FC53290003929C6 /* BikeShareMapViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9579548E1FC53290003929C6 /* BikeShareMapViewController.m */; };
@@ -31,6 +32,8 @@
 		36A2BCCD1FC6120400DD20ED /* greenpin.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = greenpin.png; sourceTree = "<group>"; };
 		36A2BCD11FC6124B00DD20ED /* blackpin.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = blackpin.png; sourceTree = "<group>"; };
 		36A2BCD31FC618ED00DD20ED /* direction.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = direction.png; sourceTree = "<group>"; };
+		954B22491FCD207C00E78808 /* LocationSelectionViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LocationSelectionViewController.h; sourceTree = "<group>"; };
+		954B224A1FCD20E200E78808 /* LocationSelectionViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LocationSelectionViewController.m; sourceTree = "<group>"; };
 		957954841FC53290003929C6 /* bikemap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = bikemap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		957954881FC53290003929C6 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		9579548A1FC53290003929C6 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -106,6 +109,8 @@
 				957954A41FC54D15003929C6 /* BikeLocation.h */,
 				957954A51FC54D7D003929C6 /* BikeLocation.m */,
 				957954901FC53290003929C6 /* Main.storyboard */,
+				954B22491FCD207C00E78808 /* LocationSelectionViewController.h */,
+				954B224A1FCD20E200E78808 /* LocationSelectionViewController.m */,
 				957954961FC53290003929C6 /* Assets.xcassets */,
 				957954981FC53290003929C6 /* LaunchScreen.storyboard */,
 				9579549B1FC53290003929C6 /* Info.plist */,
@@ -215,6 +220,7 @@
 				9579548F1FC53290003929C6 /* BikeShareMapViewController.m in Sources */,
 				957954951FC53290003929C6 /* bikemap.xcdatamodeld in Sources */,
 				9579548C1FC53290003929C6 /* AppDelegate.m in Sources */,
+				954B224B1FCD20E200E78808 /* LocationSelectionViewController.m in Sources */,
 				957954891FC53290003929C6 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
