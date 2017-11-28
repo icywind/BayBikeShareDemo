@@ -16,5 +16,5 @@ typedef void (^LocationSelectCallbackBlock)(MKPlacemark *);
 @property (strong, nonatomic) IBOutlet UISearchBar *searchBar;
 @property (strong, nonatomic) IBOutlet UITableView *tableView;
 
--(void) initWithUserLocation:(CLLocationCoordinate2D)location Callback:(LocationSelectCallbackBlock)callback;
+-(void) initWithUserLocation:(CLLocationCoordinate2D)location title:(NSString*)title userLocation:(BOOL)useUserLocation Callback:(LocationSelectCallbackBlock)callback;
 @end

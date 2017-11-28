@@ -21,6 +21,7 @@
 - (IBAction)startTextEditDidEnd:(id)sender;
 - (IBAction)startTextActionTriggered:(id)sender;
 - (IBAction)startTextValueChanged:(id)sender;
+- (IBAction)destTextEditStarted:(id)sender;
 - (IBAction)destTextEditDidEnd:(id)sender;
 - (IBAction)destTextActionTriggered:(id)sender;
 

@@ -1,12 +1,14 @@
 //
-//  ViewController.m
-//  bikemap
+//  BikeShareMapViewController.m
+//    This class serves as the main view controller for the Bay Area Ride Share Planner
 //
 //  Created by Rickie on 11/21/17.
 //  Copyright © 2017 Rickie. All rights reserved.
 //
 
 #import <MapKit/MapKit.h>
+#import <dispatch/dispatch.h>
+
 #import "BikeShareMapViewController.h"
 #import "BikeLocation.h"
 #import "LocationSelectionViewController.h"
@@ -22,6 +24,7 @@
 #define ID_RED_LOCATION @"Red Location"
 #define ID_ORIGIN @"Start Location"
 #define ID_DESTINATION @"Destination Location"
+#define SEGUE_SELECTION @"GotoSelection"
 
 // Conversions
 #define METERS_PER_MILE 1609.344
@@ -54,6 +57,7 @@ MKPlacemark * destinationPoint;
 BikeShareViewState myState;
 BikeLocation * selectedBikeLocation;
 double latitude_UserLocation, longitude_UserLocation;
+NSString * title;
 
 - (void) loadUserLocation
 {
@@ -286,26 +290,48 @@ double latitude_UserLocation, longitude_UserLocation;
 
 // User finished input and hit "Search" on the keyboard
 - (IBAction)startTextActionTriggered:(id)sender {
-    [self searchForLocation:_startTextfield];
 }
+
 - (IBAction)startTextEditDidBegin:(id)sender {
-    [self performSegueWithIdentifier:@"GotoSelection" sender:self];
-    // is there a way to disable Storyboard's trigger?
-    // or create a dummy UI for that???
+    originPoint = nil;
+    [self performSegueWithIdentifier:SEGUE_SELECTION sender:sender];
+}
+
+- (IBAction)destTextEditStarted:(id)sender {
+    destinationPoint = nil;
+    [self performSegueWithIdentifier:SEGUE_SELECTION sender:sender];
 }
 
 // This will get called too before the view appears
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
 {
-    if ([[segue identifier] isEqualToString:@"GotoSelection"]) {
+    if ([[segue identifier] isEqualToString:SEGUE_SELECTION]) {
         
         // Get destination view
         LocationSelectionViewController *vc = (LocationSelectionViewController*)[segue destinationViewController];
         
+        BOOL isStartPoint = (sender == _startTextfield);
+        NSString * locTitle = isStartPoint?@"Start Point":@"Destination";
         // Pass the information to your destination view
-        [vc initWithUserLocation:CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation) Callback:^(MKPlacemark *placeMake) {
-            NSLog(@"Got place:%@", placeMake.description);
-        }];
+        [vc initWithUserLocation:CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation)
+                           title:locTitle
+                    userLocation:isStartPoint
+                        Callback:^(MKPlacemark *placeMake) {
+                            if (isStartPoint) {
+                                originPoint = placeMake;
+                                [_startTextfield setText:placeMake.name];
+                            } else {
+                                destinationPoint = placeMake;
+                                [_destRextfield setText:placeMake.name];
+                            }
+                            
+                            if (originPoint != nil && destinationPoint != nil) {
+                                dispatch_async(dispatch_get_main_queue(), ^(void) {
+                                    [_confirmButton setEnabled:YES];
+                                });
+                            }
+                        }
+        ];
     }
 }
 
@@ -323,7 +349,6 @@ double latitude_UserLocation, longitude_UserLocation;
 }
 
 - (IBAction)destTextActionTriggered:(id)sender {
-    [self searchForLocation:_destRextfield];
     [self dismissKeyboard];
 }
 
@@ -403,96 +428,6 @@ double latitude_UserLocation, longitude_UserLocation;
     }
     return -1;
 }
-
-#pragma mark - Search Locations
-
-// Search for the location from the input string.  Return the first result as the answer for now.
-//  May extend to a table view to allow user to choose from more locations found.
-- (void) searchForLocation:(UITextField *)textfield {
-    // Create and initialize a search request object.
-    MKLocalSearchRequest *request = [[MKLocalSearchRequest alloc] init];
-    request.naturalLanguageQuery = textfield.text;
-    request.region = self.mapView.region;
-    
-    // Create and initialize a search object.
-    MKLocalSearch *search = [[MKLocalSearch alloc] initWithRequest:request];
-    
-    // Start the search and display the results as annotations on the map.
-    [search startWithCompletionHandler:^(MKLocalSearchResponse *response, NSError *error)
-    {
-        NSMutableArray *placemarks = [NSMutableArray array];
-        for (MKMapItem *item in response.mapItems) {
-            [placemarks addObject:item.placemark];
-            NSLog(@"Place: name:%@  address:%@", item.placemark.name, [item.placemark.addressDictionary objectForKey:@"FormattedAddressLines"]);
-        }
-        // We may consider using a table to present choices, but for now just feed the first one if any
-        if ([placemarks count] > 0) {
-            MKPlacemark * mark = [placemarks objectAtIndex:0];
-            [self confirmSearchChoice:mark callback:^(BOOL ok) {
-                if (ok) {
-                    textfield.text = mark.name;
-                    if (textfield == _startTextfield) {
-                        originPoint = mark;
-                        [_startTextfield setEnabled:NO];
-                    } else if (textfield == _destRextfield) {
-                        destinationPoint = mark;
-                        [_destRextfield setHidden:NO];
-                    }
-                    
-                    if (originPoint != nil && destinationPoint != nil) {
-                        [_confirmButton setEnabled:YES];
-                    }
-                    
-                }
-            }];
-        }
-    }];
-}
-
-// Confirm the search result with an alert dialog
-- (void) confirmSearchChoice:(MKPlacemark *)place  callback:(void (^)(BOOL))callbackBlock
-{
-    NSString * street = [[place.addressDictionary objectForKey:@"Street"] stringByReplacingOccurrencesOfString:@"\"" withString:@""];
-    if (street == nil) {
-        street = @"";
-    }
-    NSString * zip = [place.addressDictionary objectForKey:@"ZIP"];
-    if (zip == nil) {
-        zip = @"";
-    }
-    NSString * nameAndAddress = [NSString stringWithFormat:@"%@\n%@\n%@,%@ %@",
-                                 place.name,
-                                 street,
-                                 [place.addressDictionary objectForKey:@"City"],
-                                 [place.addressDictionary objectForKey:@"State"],
-                                 zip
-                                 ];
-
-    
-    UIAlertController * alert=[UIAlertController alertControllerWithTitle:@"Is this the place?"
-                                                                  message:nameAndAddress
-                                                           preferredStyle:UIAlertControllerStyleAlert];
-    
-    UIAlertAction* yesButton = [UIAlertAction actionWithTitle:@"Yes"
-                                                        style:UIAlertActionStyleDefault
-                                                      handler:^(UIAlertAction * action)
-    {
-        callbackBlock(YES);
-    }];
-    
-    UIAlertAction* noButton = [UIAlertAction actionWithTitle:@"No"
-                                                       style:UIAlertActionStyleDefault
-                                                     handler:^(UIAlertAction * action)
-    {
-        callbackBlock(NO);
-    }];
-    
-    [alert addAction:noButton];
-    [alert addAction:yesButton];
-    
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
 
 #pragma mark - Support functions
 
@@ -603,7 +538,7 @@ double latitude_UserLocation, longitude_UserLocation;
     [mapView setRegion:viewRegion animated:YES];
 }
 
-// The following midpoing calculation code is copied from Stackoverflow user Bala
+// The following midpoint calculation code is copied from Stackoverflow user Bala
 - (CLLocationCoordinate2D)midpointBetweenCoordinate:(CLLocationCoordinate2D)c1 andCoordinate:(CLLocationCoordinate2D)c2
 {
     c1.latitude = ToRadian(c1.latitude);

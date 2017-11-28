@@ -1,6 +1,7 @@
 //
 //  LocationSelectionViewController.m
-//  bikemap
+//    This class serves a search and selection UI for the origin and destination
+//  input from the BikeShareMapViewController.
 //
 //  Created by Rickie on 11/27/17.
 //  Copyright © 2017 Rickie. All rights reserved.
@@ -17,6 +18,9 @@
 NSMutableArray * placeMarks;
 LocationSelectCallbackBlock callbackWhenFinish;
 CLLocationCoordinate2D searchCenter;
+NSString * locTitle;
+BOOL bUseUserLocation;
+
 # pragma mark - UISearchBarDelegates
 - (void)searchBarBookmarkButtonClicked:(UISearchBar *)searchBar
 {
@@ -27,13 +31,13 @@ CLLocationCoordinate2D searchCenter;
 {
     NSLog(@"Search bar clicked, searching starts...");
     [self searchForLocation:searchBar.text];
+    [self.view endEditing:YES];
 }
 
 - (void)searchBarCancelButtonClicked:(UISearchBar *)searchBar
 {
     NSLog(@"Search bar canceled");
-    [self ConstructPlaceList:nil];
-    [_tableView reloadData];
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)searchBarTextDidBeginEditing:(UISearchBar *)searchBar
@@ -57,7 +61,7 @@ CLLocationCoordinate2D searchCenter;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (indexPath.row == 0) {
+    if (indexPath.row == 0 && bUseUserLocation) {
         return 44;
     } else {
         return 68;
@@ -71,13 +75,8 @@ CLLocationCoordinate2D searchCenter;
     MKPlacemark * place = [placeMarks objectAtIndex:indexPath.row];
     
     if (cell != nil) {
-        if (indexPath.row > 0) {
-            address = [place.addressDictionary valueForKey:@"Street"];
-            if (address == nil) {
-                address = [NSString stringWithFormat:@"%@, %@", [place.addressDictionary valueForKey:@"City"], [place.addressDictionary valueForKey:@"State"]];
-            } else {
-                address = [address stringByAppendingFormat:@"\n%@, %@", [place.addressDictionary valueForKey:@"City"], [place.addressDictionary valueForKey:@"State"]];
-            }
+        if (indexPath.row > 0 || !bUseUserLocation) {
+            address = [self getAddress:place];
         }
         [cell.textLabel setText:[place name]];
         [cell.detailTextLabel setText:address];
@@ -87,13 +86,61 @@ CLLocationCoordinate2D searchCenter;
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     NSLog(@"Row %d was selected, return value %@", (int)indexPath.row, [[placeMarks objectAtIndex:indexPath.row] description]);
+    MKPlacemark * mark = [placeMarks objectAtIndex:indexPath.row];
+    [self confirmSearchChoice:mark callback:^(BOOL ok) {
+        if (ok) {
+            if (callbackWhenFinish != nil) {
+                callbackWhenFinish([placeMarks objectAtIndex:indexPath.row]);
+            }
+            
+            [self dismissViewControllerAnimated:YES completion:nil];
+        }
+    }];
+
+}
+
+#pragma mark - Life Cycle
+- (void) viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated ];
     
-    if (callbackWhenFinish != nil) {
-        callbackWhenFinish([placeMarks objectAtIndex:indexPath.row]);
-    }
+    //searchCenter = CLLocationCoordinate2DMake(37.802611, -122.405721);
+    [self ConstructPlaceList:nil];
 }
 
 #pragma mark - Supporting functions
+
+-(void) initWithUserLocation:(CLLocationCoordinate2D)location title:(NSString*)titleText userLocation:(BOOL)useUserLocation Callback:(LocationSelectCallbackBlock)callback
+{
+    locTitle = titleText;
+    bUseUserLocation = useUserLocation;
+    searchCenter = location;
+    callbackWhenFinish = callback;
+}
+
+- (NSString *) getAddress:(MKPlacemark *) place {
+    NSString * address =  [place.addressDictionary valueForKey:@"Street"];
+    NSString * city = [place.addressDictionary valueForKey:@"City"];
+    NSString * state = [place.addressDictionary valueForKey:@"State"];
+    
+    if (address == nil) {
+        address = @"";
+    } else {
+        address = [address stringByAppendingString:@"\n"];
+    }
+    
+    if (city != nil) {
+        address = [address stringByAppendingString:city];
+    }
+    
+    if (state != nil) {
+        if (city != nil) {
+            address = [address stringByAppendingString:@", "];
+        }
+        address = [address stringByAppendingString:state];
+    }
+    
+    return address;
+}
 
 - (void) searchForLocation:(NSString *)searchText {
     NSLog(@"%s:%@", __func__, searchText);
@@ -116,10 +163,18 @@ CLLocationCoordinate2D searchCenter;
      }];
 }
 
+//
+// Make the places list from the search result.  If this is for the origin, add the current location
+// to the first element.
 - (void) ConstructPlaceList:(NSArray *) searchResult {
     MKMapItem * currentLoc = [[MKMapItem alloc] initWithPlacemark:[[MKPlacemark alloc] initWithCoordinate:searchCenter]];
-    currentLoc.name = @"Current Location";
-    placeMarks = [NSMutableArray arrayWithObject:currentLoc.placemark];
+    placeMarks = [NSMutableArray array];
+    
+    if (bUseUserLocation) {
+        currentLoc.name = @"Current Location";
+        [placeMarks addObject:currentLoc.placemark];
+    }
+    
     if (searchResult != nil) {
         for (MKMapItem *item in searchResult) {
             [placeMarks addObject:item.placemark];
@@ -128,17 +183,38 @@ CLLocationCoordinate2D searchCenter;
     }
 }
 
-#pragma mark - Life Cycle
-- (void) viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated ];
+
+// Confirm the search result with an alert dialog
+- (void) confirmSearchChoice:(MKPlacemark *)place  callback:(void (^)(BOOL))callbackBlock
+{
+    NSString * nameAndAddress = [NSString stringWithFormat:@"%@\n%@",
+                                 place.name,
+                                 [self getAddress:place]
+                                 ];
     
-    //searchCenter = CLLocationCoordinate2DMake(37.802611, -122.405721);
-    [self ConstructPlaceList:nil];
+    
+    UIAlertController * alert=[UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"Is this the %@", locTitle]
+                                                                  message:nameAndAddress
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction* yesButton = [UIAlertAction actionWithTitle:@"Yes"
+                                                        style:UIAlertActionStyleDefault
+                                                      handler:^(UIAlertAction * action)
+                                {
+                                    callbackBlock(YES);
+                                }];
+    
+    UIAlertAction* noButton = [UIAlertAction actionWithTitle:@"No"
+                                                       style:UIAlertActionStyleDefault
+                                                     handler:^(UIAlertAction * action)
+                               {
+                                   callbackBlock(NO);
+                               }];
+    
+    [alert addAction:noButton];
+    [alert addAction:yesButton];
+    
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
--(void) initWithUserLocation:(CLLocationCoordinate2D)location Callback:(LocationSelectCallbackBlock)callback {
-    
-    searchCenter = location;
-    callbackWhenFinish = callback;
-}
 @end
