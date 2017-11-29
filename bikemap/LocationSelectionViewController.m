@@ -171,7 +171,7 @@ BOOL bUseUserLocation;
     placeMarks = [NSMutableArray array];
     
     if (bUseUserLocation) {
-        currentLoc.name = @"Current Location";
+        currentLoc.name = CURRENT_LOCATION_TEXT;
         [placeMarks addObject:currentLoc.placemark];
     }
     

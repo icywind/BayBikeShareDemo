@@ -369,7 +369,7 @@ NSString * title;
     [self ClearPoints];
     
     // Plot the Start and End mark
-    if ([_startTextfield.text isEqualToString:@"current location"]) {
+    if ([_startTextfield.text isEqualToString:CURRENT_LOCATION_TEXT]) {
         CLLocationCoordinate2D coord = CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation);
         MKPointAnnotation *point  = [MKPointAnnotation new];
         point.coordinate = coord;
@@ -392,9 +392,12 @@ NSString * title;
 
 - (IBAction)cancelInputPressed:(id)sender {
     [_startTextfield setEnabled:YES];
+    [_startTextfield setText:CURRENT_LOCATION_TEXT];
+    originPoint = [[MKPlacemark alloc] initWithCoordinate:CLLocationCoordinate2DMake(latitude_UserLocation, longitude_UserLocation) ];
     [_destRextfield setEnabled:YES];
-    originPoint = nil;
+    [_destRextfield setText:@""];
     destinationPoint = nil;
+    [_confirmButton setEnabled:NO];
     [self dismissKeyboard];
 }
 

@@ -9,6 +9,9 @@
 #import <UIKit/UIKit.h>
 #import <CoreData/CoreData.h>
 
+
+#define CURRENT_LOCATION_TEXT @"current location"
+
 typedef void (^LocationSelectCallbackBlock)(MKPlacemark *);
 
 @interface LocationSelectionViewController : UIViewController <UITableViewDelegate, UISearchBarDelegate>
